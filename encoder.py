@@ -13,7 +13,6 @@ from tensorflow.keras.layers import Conv2D
 folder_path = './shared/databases/english_small/train/unit/'
 sound_names = os.listdir(folder_path)
 max_len = 0
-channels = 3
 
 
 def load_sound_files():
@@ -72,7 +71,7 @@ mfccs = mfccs.reshape(np.shape(mfccs)[0],39,max_len,1)
 def get_conv_model():
 	model = Sequential()
 	print(channels)
-	model.add(Conv2D(768,(3,3),activation='relu',input_shape=(39,max_len,channels,1)))
+	model.add(Conv2D(768,(3,3),activation='relu',input_shape=(39,max_len,1)))
 	model.add(Conv2D(768,(3,3),activation='relu'))
 	model.summary()
 
