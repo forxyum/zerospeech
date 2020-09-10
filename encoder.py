@@ -70,7 +70,6 @@ mfccs = mfccs.reshape(np.shape(mfccs)[0],39,max_len,1)
 
 def get_conv_model():
 	model = Sequential()
-	print(channels)
 	model.add(Conv2D(768,(3,3),activation='relu',input_shape=(39,max_len,1)))
 	model.add(Conv2D(768,(3,3),activation='relu'))
 	model.summary()
