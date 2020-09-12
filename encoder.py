@@ -7,12 +7,14 @@ import numpy as np
 import time
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Conv2D, Input, Add, Activation, Dense
+from contextlib import redirect_stdout
 
 folder_path = './shared/databases/english_small/train/unit/'
 sound_names = os.listdir(folder_path)
 max_len = 0
+channels = 1
 
 
 def load_sound_files():
@@ -65,15 +67,44 @@ mfccs = get_mfccs(sound_files)
 #plot_mfccs(mfccs[0])
 
 mfccs = np.array(mfccs)
-mfccs = mfccs.reshape(np.shape(mfccs)[0],39,max_len,1)
+mfccs = mfccs.reshape(np.shape(mfccs)[0],39,max_len,channels)
 
+def relu_layer(x):
+	x_copy = x 
+	x = Dense(768)(x)
+	x = Add()([x,x_copy])
+	x = Activation('relu')(x)
+	return x
 
 def get_conv_model():
-	model = Sequential()
-	print(channels)
-	model.add(Conv2D(768,(3,3),activation='relu',input_shape=(39,max_len,1)))
-	model.add(Conv2D(768,(3,3),activation='relu'))
-	model.summary()
+	inp = Input(shape=mfccs.shape[1:])
+	x = Conv2D(768,3,padding='same',activation='relu')(inp)
+	#copy for skip connection
+	x_copy = x
+	x = Conv2D(768,3,padding='same')(x)
+	#skip connection
+	x = Add()([x,x_copy])
+	x = Activation('relu')(x)
+	x = Conv2D(768,4,strides=2,padding='same',activation='relu')(x)
+
+	x_copy = x
+	x = Conv2D(768,3,padding='same')(x)
+	x = Add()([x,x_copy])
+	x = Activation('relu')(x)
+
+	x_copy = x
+	x = Conv2D(768,3,padding='same')(x)
+	x = Add()([x,x_copy])
+	x = Activation('relu')(x)
+
+	x = relu_layer(x)
+	x = relu_layer(x)
+	x = relu_layer(x)
+	x = relu_layer(x)
+
+	model = Model(inputs=inp,outputs=x)
+	with open('modelsummary.txt', 'w') as f:
+		with redirect_stdout(f):
+			model.summary()
 
 model = get_conv_model()
-print('-----------------------------------------------------------------------------')
