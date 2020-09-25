@@ -8,20 +8,25 @@ import time
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import Model
-from tensorflow.keras.layers import Conv2D, Input, Add, Activation, Dense
+from tensorflow.keras.layers import Conv1D, Input, Add, Activation, Dense
 from contextlib import redirect_stdout
 
 folder_path = './shared/databases/english_small/train/unit/'
 sound_names = os.listdir(folder_path)
+window_width = 0.025
+stride = 0.010
 max_len = 0
 channels = 1
-
+last_layer = None
+inputs = None
+sample_rate = 16000
 
 def load_sound_files():
 	start_time = time.time()
 	sounds = []
+	global sample_rate
 	for file in os.listdir(folder_path):
-		sample, sample_rate = librosa.load(folder_path+file, sr = 16000)
+		sample, sr = librosa.load(folder_path+file, sr = sample_rate)
 		sounds.append(sample)
 	print('Loading the files took {} seconds'.format(time.time()-start_time))
 	return sounds
@@ -29,8 +34,9 @@ def load_sound_files():
 def get_mfccs(samples):
 	start_time = time.time()
 	mfccs = []
+	global sample_rate
 	for sample in samples:
-		base = librosa.feature.mfcc(y=sample,sr=16000,n_mfcc=13)
+		base = librosa.feature.mfcc(y=sample,sr=sample_rate,n_mfcc=13,hop_length=int(stride*sample_rate),n_fft=int(window_width*sample_rate))
 		delta = librosa.feature.delta(base)
 		delta2 = librosa.feature.delta(base,order=2)
 		#sep = np.full((1,np.shape(base)[1]),600)
@@ -77,23 +83,25 @@ def relu_layer(x):
 	return x
 
 def get_conv_model():
-	inp = Input(shape=mfccs.shape[1:])
-	x = Conv2D(768,3,padding='same',activation='relu')(inp)
+	global inputs
+	inputs = Input(shape=mfccs.shape[1:])
+
+	x = Conv1D(768,3,padding='same',activation='relu')(inputs)
 	#copy for skip connection
 	x_copy = x
-	x = Conv2D(768,3,padding='same')(x)
+	x = Conv1D(768,3,padding='same')(x)
 	#skip connection
 	x = Add()([x,x_copy])
 	x = Activation('relu')(x)
-	x = Conv2D(768,4,strides=2,padding='same',activation='relu')(x)
+	x = Conv1D(768,4,strides=2,padding='same',activation='relu')(x)
 
 	x_copy = x
-	x = Conv2D(768,3,padding='same')(x)
+	x = Conv1D(768,3,padding='same')(x)
 	x = Add()([x,x_copy])
 	x = Activation('relu')(x)
 
 	x_copy = x
-	x = Conv2D(768,3,padding='same')(x)
+	x = Conv1D(768,3,padding='same')(x)
 	x = Add()([x,x_copy])
 	x = Activation('relu')(x)
 
@@ -102,9 +110,14 @@ def get_conv_model():
 	x = relu_layer(x)
 	x = relu_layer(x)
 
-	model = Model(inputs=inp,outputs=x)
+	global last_layer
+	last_layer = x
+
+	model = Model(inputs=inputs,outputs=x)
 	with open('modelsummary.txt', 'w') as f:
 		with redirect_stdout(f):
 			model.summary()
+
+	return model
 
 model = get_conv_model()
